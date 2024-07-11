@@ -23,7 +23,7 @@ project_id = data["project_id"]
 # noinspection PyDefaultArgument
 async def translate_text(
         text: str = "YOUR_TEXT_TO_TRANSLATE",
-        option: dict = dict(location="global", source_language_code="en-US", target_language_code="ko")
+        option: dict = dict(location="global", source_language_code="en-US", target_language_code="ko", report=False)
 ) -> str:
     # key 값 인증
     client = translate.TranslationServiceClient()
@@ -44,8 +44,9 @@ async def translate_text(
 
     # 제공된 각 입력 텍스트에 대한 번역을 표시합니다.
     for translation in response.translations:
-        print(f"번역 전 텍스트 : {text}")
-        print(f"번역 후 텍스트 : {translation.translated_text}\n")
+        if option.get('report'):
+            print(f"번역 전 텍스트 : {text}")
+            print(f"번역 후 텍스트 : {translation.translated_text}\n")
 
         return translation.translated_text
 

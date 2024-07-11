@@ -4,6 +4,9 @@ import json
 import os.path
 import sys
 
+from tqdm.auto import tqdm
+from os.path import join as opj
+
 import translation.google_cloud.google_cloud as trg
 
 # 중단 지점 기록 키 이름
@@ -56,29 +59,27 @@ def progress_line(origin_location, copy_location, debug=False) -> str:
         return recode_key
 
 
-if __name__ == '__main__':
+def translate(origin_location, temp_location, complete_location):
     # 기록을 위한 함수
     def recode():
-        with open(copy_name, 'w', encoding='UTF-8') as t:
+        with open(temp_location, 'w', encoding='UTF-8') as t:
             json.dump(data, t, ensure_ascii=False, indent=4)
 
-
-    origin_json = 'en_us.json'
-    copy_name = 'temp_kr.json'
-
     # 번역할 라인 번호. 오류 혹은 중단 포인트를 사용하기 위한 값이기도 합니다.
-    progress_key = progress_line(origin_json, copy_name, True)
+    progress_key = progress_line(origin_location, temp_location, True)
 
-    with open(copy_name, 'r', encoding='UTF-8') as t:
+    with open(temp_location, 'r', encoding='UTF-8') as t:
         data = json.load(t)
 
     # 중단 지점까지 가기 위한 코드
     breaking_point = False
+    # 진행 사항 표시를 위한 tqdm
+    data_tqdm = tqdm(data)
 
+    print(f'번역을 시작 합니다. 시작 키 위치는 {progress_key} 입니다.\n')
+    
     try:
-        print(f'번역을 시작 합니다.\n시작 키 위치는 {progress_key} 입니다.\n')
-
-        for key in data:
+        for key in data_tqdm:
             if key == progress_key: breaking_point = True
 
             if breaking_point:
@@ -88,7 +89,8 @@ if __name__ == '__main__':
                 # 만약 텍스트 크기가 1 이하인 경우 오류가 발생 및 필요없는 비용이므로 무시 처리
                 if len(origin_txt) < 1: continue
 
-                translation_txt = asyncio.run(trg.translate_text(origin_txt))
+                options = dict(location="global", source_language_code='ru_ru', target_language_code='ko_kr')
+                translation_txt = asyncio.run(trg.translate_text(origin_txt, option=options))
 
                 # 기존 값에 번역값 덮어씌우기
                 data[key] = translation_txt
@@ -103,15 +105,30 @@ if __name__ == '__main__':
         print(e)
         sys.exit(0)
 
-    except KeyboardInterrupt as k:
+    except KeyboardInterrupt:
         print(f'번역중 중단 요청을 확인했습니다.\n중단 지점은 {progress_key} 입니다.')
 
         data[recode_key_name] = progress_key
 
         recode()
         sys.exit(0)
+    finally:
+        data_tqdm.close()
 
+    print('번역이 완료 되었습니다.')
     del data[recode_key_name]
 
+    print('번역된 파일을 기록중...')
     recode()
-    os.rename(copy_name, 'kr.json')
+    os.rename(temp_location, f'{complete_location}')
+    print(f'완료 되었습니다. 번역된 파일의 위치는 {complete_location} 입니다.')
+
+
+if __name__ == '__main__':
+    dir = 'GregTech Modern'
+
+    origin_json = opj(dir, 'ru_ru.json')
+    copy_name = opj(dir, 'temp_ko_kr.json')
+    complete_name = opj(dir, 'ko_kr.json')
+
+    translate(origin_json, copy_name, complete_name)
